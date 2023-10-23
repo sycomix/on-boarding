@@ -55,7 +55,7 @@ class Options(object):
 def _patch_environ(**kwargs):
     '''Temporarily adds kwargs to os.environ'''
     try:
-        orig_vars = {k: environ[k] for k in kwargs.keys() if k in environ}
+        orig_vars = {k: environ[k] for k in kwargs if k in environ}
         environ.update(kwargs)
         yield
     finally:
@@ -69,23 +69,20 @@ def _authenticate(auth_api):
     username = environ.get(_USERNAME_VAR)
     password = environ.get(_PASSWORD_VAR)
 
-    # user/pass supported for now. use if explicitly provided instead of prompting for token
-    if username and password:
-        if auth_api is None:
-            print('An authentication API is required if using username & password credentials')
+    if not username or not password:
+        return gettoken('Enter onboarding token: ')
 
-        headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}
-        request_body = {'request_body': {'username': username, 'password': password}}
-        response = requests.post(auth_api, json=request_body, headers=headers)
+    if auth_api is None:
+        print('An authentication API is required if using username & password credentials')
 
-        if response.status_code != 200:
-            print("Authentication failure: {}".format(r.text))
+    request_body = {'request_body': {'username': username, 'password': password}}
+    headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}
+    response = requests.post(auth_api, json=request_body, headers=headers)
 
-        jwt = response.json()['jwtToken']
-    else:
-        jwt = gettoken('Enter onboarding token: ')
+    if response.status_code != 200:
+        print(f"Authentication failure: {r.text}")
 
-    return jwt
+    return response.json()['jwtToken']
 
 
 def _post_model(dockerImageURI, model_name, files, advance_api, auth_api, options):
@@ -131,7 +128,7 @@ class Checkinput(object):
         response = self.read_userinput(question).lower()
         if response == 'y':
             file = input("Enter the name of file : ")
-            file = "./" + file
+            file = f"./{file}"
             if os.path.isfile(file):
                 if category == "license":
                     option.license = True
@@ -139,7 +136,7 @@ class Checkinput(object):
                     option.protobuf = True
                 return file
             else:
-                print('This {} file does not exist in this folder'.format(category))
+                print(f'This {category} file does not exist in this folder')
                 return self.attach_file(question, option, category)
         elif response.lower() == 'n':
             return file
@@ -152,8 +149,8 @@ if __name__ == "__main__":
     print("Docker image URI looks like: https://example.com:port/image-tag:version")
     dockerImageURI = input("Enter docker image URI: ")
     host = input("Enter the host name: ")
-    auth_api = "https://" + host + ":443/onboarding-app/v2/auth"
-    advance_api = "https://" + host + ":443/onboarding-app/v2/advancedModel"
+    auth_api = f"https://{host}:443/onboarding-app/v2/auth"
+    advance_api = f"https://{host}:443/onboarding-app/v2/advancedModel"
     option = Options(create_microservice=False, license=False, protobuf=False)
     check_input = Checkinput()
 
